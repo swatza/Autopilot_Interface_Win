@@ -1,3 +1,54 @@
+/****************************************************************************
+*
+*   Copyright (c) 2014 MAVlink Development Team. All rights reserved.
+*   Author: Trent Lukaczyk, <aerialhedgehog@gmail.com>
+*           Jaycee Lock,    <jaycee.lock@gmail.com>
+*           Lorenz Meier,   <lm@inf.ethz.ch>
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions
+* are met:
+*
+* 1. Redistributions of source code must retain the above copyright
+*    notice, this list of conditions and the following disclaimer.
+* 2. Redistributions in binary form must reproduce the above copyright
+*    notice, this list of conditions and the following disclaimer in
+*    the documentation and/or other materials provided with the
+*    distribution.
+* 3. Neither the name PX4 nor the names of its contributors may be
+*    used to endorse or promote products derived from this software
+*    without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+* COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+* INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+* BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+* OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+* AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+* LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+* ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+* POSSIBILITY OF SUCH DAMAGE.
+*
+****************************************************************************/
+
+/**
+* @file mavlink_control.cpp
+*
+* @brief An example offboard control process via mavlink
+*
+* This process connects an external MAVLink UART device to send an receive data
+*
+* @author Trent Lukaczyk, <aerialhedgehog@gmail.com>
+* @author Jaycee Lock,    <jaycee.lock@gmail.com>
+* @author Lorenz Meier,   <lm@inf.ethz.ch>
+*
+* Modified by Spencer Watza, <s.g.watza@gmail.com>
+* For Windows Use
+*/
+
 #include "mavlink_control.h"
 
 // ------------------------------------------------------------------------------
@@ -12,15 +63,18 @@ top(int argc, char **argv)
 	// --------------------------------------------------------------------------
 
 	// Default input arguments
+	//THIS NEEDS TO BE CHANGED!
+	ldajgk;
 #ifdef __APPLE__
 	char *uart_name = (char*)"/dev/tty.usbmodem1";
 #else
 	char *uart_name = (char*)"/dev/ttyUSB0";
 #endif
 	int baudrate = 57600;
+	int portNum = 1;
 
 	// do the parse, will throw an int if it fails
-	parse_commandline(argc, argv, uart_name, baudrate);
+	parse_commandline(argc, argv, portNum, baudrate);
 
 
 	// --------------------------------------------------------------------------
@@ -37,7 +91,7 @@ top(int argc, char **argv)
 	* pthread mutex lock.
 	*
 	*/
-	Serial_Port serial_port(uart_name, baudrate);
+	Serial_Port serial_port(portNum, baudrate);
 
 
 	/*
@@ -55,7 +109,7 @@ top(int argc, char **argv)
 	* otherwise the vehicle will go into failsafe.
 	*
 	*/
-	Autopilot_Interface autopilot_interface(&ersial_port);
+	Autopilot_Interface autopilot_interface(&serial_port);
 
 	/*
 	* Setup interrupt signal handler
@@ -73,7 +127,7 @@ top(int argc, char **argv)
 	* Start the port and autopilot_interface
 	* This is where the port is opened, and read and write threads are started.
 	*/
-	serial_port.start();
+
 	autopilot_interface.start();
 
 
@@ -218,7 +272,7 @@ commands(Autopilot_Interface &api)
 // ------------------------------------------------------------------------------
 // throws EXIT_FAILURE if could not open the port
 void
-parse_commandline(int argc, char **argv, char *&uart_name, int &baudrate)
+parse_commandline(int argc, char **argv, int &portNum, int &baudrate)
 {
 
 	// string for command line usage
@@ -234,9 +288,9 @@ parse_commandline(int argc, char **argv, char *&uart_name, int &baudrate)
 		}
 
 		// UART device ID
-		if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--device") == 0) {
+		if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--deviceNum") == 0) {
 			if (argc > i + 1) {
-				uart_name = argv[i + 1];
+				portNum = atoi(argv[i + 1]);
 
 			}
 			else {
