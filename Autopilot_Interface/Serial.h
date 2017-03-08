@@ -6,6 +6,8 @@
 #include "stdio.h"
 #include "windows.h"
 #include "Strsafe.h"
+#include "stdafx.h"
+
 #define FC_DTRDSR       0x01
 #define FC_RTSCTS       0x02
 #define FC_XONXOFF      0x04

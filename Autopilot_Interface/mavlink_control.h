@@ -62,6 +62,7 @@
 #include <fstream>
 #include <signal.h>
 #include <time.h>
+#include "stdafx.h"
 
 using std::string;
 using namespace std;

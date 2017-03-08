@@ -27,8 +27,8 @@ BOOL CSerial::Open( int nPort, int nBaud )
 
 	//char szPort[15];
 	//char szPort[15];
-	LPTSTR szPort;
-	LPTSTR szComParams;
+	LPTSTR szPort = NULL;
+	LPTSTR szComParams = NULL;
 	DCB dcb;
 
 	size_t cbDest = 15 * sizeof(char);

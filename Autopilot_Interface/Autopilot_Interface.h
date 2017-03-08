@@ -209,6 +209,9 @@ struct Mavlink_Messages {
 
 };
 
+void usleep(__int64 usec);
+void ErrorHandler(LPTSTR lpszFunction);
+
 // ********************
 //   Autopilot Interface Class
 // ********************

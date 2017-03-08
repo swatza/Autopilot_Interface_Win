@@ -66,6 +66,7 @@
 #include <signal.h>
 #include "windows.h"
 #include "Serial.h"
+#include "stdafx.h"
 
 #include <common/mavlink.h>
 
@@ -97,7 +98,7 @@
 
 //class Serial_Port;
 
-
+void usleep(__int64 usec);
 
 // ----------------------------------------------------------------------------------
 //   Serial Port Manager Class
@@ -137,7 +138,6 @@ private:
 
 	int  fd;
 	mavlink_status_t lastStatus;
-	pthread_mutex_t  lock;
 
 	int  _read_port(uint8_t &cp);
 	int _write_port(char *buf, unsigned len);
