@@ -64,7 +64,6 @@ top(int argc, char **argv)
 
 	// Default input arguments
 	//THIS NEEDS TO BE CHANGED!
-	ldajgk;
 #ifdef __APPLE__
 	char *uart_name = (char*)"/dev/tty.usbmodem1";
 #else
@@ -217,7 +216,7 @@ commands(Autopilot_Interface &api)
 	{
 		mavlink_local_position_ned_t pos = api.current_messages.local_position_ned;
 		printf("%i CURRENT POSITION XYZ = [ % .4f , % .4f , % .4f ] \n", i, pos.x, pos.y, pos.z);
-		sleep(1);
+		Sleep(1);
 	}
 
 	printf("\n");
@@ -365,4 +364,17 @@ main(int argc, char **argv)
 		return error;
 	}
 
+}
+
+void usleep(__int64 usec)
+{
+	HANDLE timer;
+	LARGE_INTEGER ft;
+
+	ft.QuadPart = -(10 * usec); // Convert to 100 nanosecond interval, negative value indicates relative time
+
+	timer = CreateWaitableTimer(NULL, TRUE, NULL);
+	SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0);
+	WaitForSingleObject(timer, INFINITE);
+	CloseHandle(timer);
 }

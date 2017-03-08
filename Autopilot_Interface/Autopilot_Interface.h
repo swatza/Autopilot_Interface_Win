@@ -117,8 +117,8 @@ void set_acceleration(float ax, float ay, float az, mavlink_set_position_target_
 void set_yaw(float yaw, mavlink_set_position_target_local_ned_t &sp);
 void set_yaw_rate(float yaw_rate, mavlink_set_position_target_local_ned_t &sp);
 
-void* start_autopilot_interface_read_thread(void *args);
-void* start_autopilot_interface_write_thread(void *args);
+DWORD WINAPI start_autopilot_interface_read_thread(void *args);
+DWORD WINAPI start_autopilot_interface_write_thread(void *args);
 
 // ********************
 //    Data Structures
@@ -257,7 +257,7 @@ public:
 	void start();
 	void stop();
 
-	void start_read_thread();
+	void start_read_thread(void);
 	void start_write_thread(void);
 
 	void handle_quit(int sig);
@@ -271,6 +271,11 @@ private:
 	bool time_to_exit;
 
 	//REPLACE WITH WINDOW THREADS
+	HANDLE hread_thread;
+	HANDLE hwrite_thread;
+
+	DWORD hread_tid;
+	DWORD hwrite_tid;
 	//pthread_t read_tid;
 	//pthread_t write_tid;
 

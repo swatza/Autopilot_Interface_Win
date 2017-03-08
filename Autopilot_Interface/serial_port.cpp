@@ -74,13 +74,11 @@ Serial_Port::Serial_Port(int portNum_, int baudrate_)
 Serial_Port::Serial_Port()
 {
 	//IS THIS NEEDED
-	initialize_defaults();
 }
 
 Serial_Port::~Serial_Port()
 {
 	// destroy mutex
-	pthread_mutex_destroy(&lock);
 }
 
 // ------------------------------------------------------------------------------
@@ -220,14 +218,10 @@ Serial_Port::
 _read_port(uint8_t &cp)
 {
 
-	// Lock
-	pthread_mutex_lock(&lock);
 
 	//int result = read(fd, &cp, 1);
 	int result = port.ReadData(&cp, 1);
 
-	// Unlock
-	pthread_mutex_unlock(&lock);
 
 	return result;
 }
@@ -239,18 +233,9 @@ _read_port(uint8_t &cp)
 int Serial_Port::_write_port(char *buf, unsigned len)
 {
 
-	// Lock
-	pthread_mutex_lock(&lock);
-
 	// Write packet via serial link
 	const int bytesWritten = port.SendData(buf, len);
-	//const int bytesWritten = static_cast<int>(write(fd, buf, len));
-
-	// Wait until all data has been written
-	tcdrain(fd);
-
-	// Unlock
-	pthread_mutex_unlock(&lock);
+	//const int bytesWritten = static_cast<int>(write(fd, buf, len))
 
 
 	return bytesWritten;

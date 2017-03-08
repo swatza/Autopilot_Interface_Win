@@ -60,6 +60,7 @@
 #include "BaseTsd.h"
 #include "windows.h"
 #include "stdio.h"
+#include <strsafe.h>
 
 //should this be ulonglong or uint64? or something else
 uint64_t get_time_usec() {
@@ -202,10 +203,6 @@ Autopilot_Interface::Autopilot_Interface(Serial_Port *serial_port_)
 	control_status = 0;      // whether the autopilot is in offboard control mode
 	time_to_exit = false;  // flag to signal thread exit
 
-	//REPLACE WITH WINDOWS Threads
-	read_tid = 0; // read thread id
-	write_tid = 0; // write thread id
-
 	system_id = 0; // system id
 	autopilot_id = 0; // autopilot component id
 	companion_id = 0; // companion computer component id
@@ -237,7 +234,7 @@ void Autopilot_Interface::read_messages()
 	Time_Stamps this_timestamps;
 
 	// Blocking wait for new data
-	while (!received_all and !time_to_exit)
+	while (!received_all && !time_to_exit)
 	{
 		// ----------------------------------------------------------------------
 		//   READ MESSAGE
@@ -413,7 +410,7 @@ void Autopilot_Interface::write_setpoint()
 	mavlink_set_position_target_local_ned_t sp = current_setpoint;
 
 	// double check some system parameters
-	if (not sp.time_boot_ms)
+	if (! sp.time_boot_ms)
 		sp.time_boot_ms = (uint32_t)(get_time_usec() / 1000);
 	sp.target_system = system_id;
 	sp.target_component = autopilot_id;
@@ -556,8 +553,12 @@ void Autopilot_Interface::start()
 
 	printf("START READ THREAD \n");
 
-	result = pthread_create(&read_tid, NULL, &start_autopilot_interface_read_thread, this);
-	if (result) throw result;
+	//result = pthread_create(&read_tid, NULL, &start_autopilot_interface_read_thread, this);
+	hread_thread = CreateThread(NULL, 0, start_autopilot_interface_read_thread, this, 0, &hread_tid);
+	if (hread_thread == NULL) {
+		ErrorHandler(TEXT("CreateThread"));
+		ExitProcess(3);
+	}
 
 	// now we're reading messages
 	printf("\n");
@@ -569,7 +570,7 @@ void Autopilot_Interface::start()
 
 	printf("CHECK FOR MESSAGES\n");
 
-	while (not current_messages.sysid)
+	while (! current_messages.sysid)
 	{
 		if (time_to_exit)
 			return;
@@ -592,14 +593,14 @@ void Autopilot_Interface::start()
 	// In which case set the id's manually.
 
 	// System ID
-	if (not system_id)
+	if (! system_id)
 	{
 		system_id = current_messages.sysid;
 		printf("GOT VEHICLE SYSTEM ID: %i\n", system_id);
 	}
 
 	// Component ID
-	if (not autopilot_id)
+	if (! autopilot_id)
 	{
 		autopilot_id = current_messages.compid;
 		printf("GOT AUTOPILOT COMPONENT ID: %i\n", autopilot_id);
@@ -612,7 +613,7 @@ void Autopilot_Interface::start()
 	// --------------------------------------------------------------------------
 
 	// Wait for initial position ned
-	while (not (current_messages.time_stamps.local_position_ned &&
+	while (!(current_messages.time_stamps.local_position_ned &&
 		current_messages.time_stamps.attitude))
 	{
 		if (time_to_exit)
@@ -643,11 +644,15 @@ void Autopilot_Interface::start()
 	// --------------------------------------------------------------------------
 	printf("START WRITE THREAD \n");
 
-	result = pthread_create(&write_tid, NULL, &start_autopilot_interface_write_thread, this);
-	if (result) throw result;
+	//result = pthread_create(&write_tid, NULL, &start_autopilot_interface_write_thread, this);
+	hread_thread = CreateThread(NULL, 0, start_autopilot_interface_write_thread, this, 0, &hwrite_tid);
+	if (hread_thread == NULL) {
+		ErrorHandler(TEXT("CreateThread"));
+		ExitProcess(3);
+	}
 
 	// wait for it to be started
-	while (not writing_status)
+	while (writing_status != 0)
 		usleep(100000); // 10Hz
 
 						// now we're streaming setpoint commands
@@ -673,8 +678,10 @@ void Autopilot_Interface::stop()
 	time_to_exit = true;
 
 	// wait for exit
-	pthread_join(read_tid, NULL);
-	pthread_join(write_tid, NULL);
+	CloseHandle(hread_thread);
+	CloseHandle(hwrite_thread);
+	//pthread_join(read_tid, NULL);
+	//pthread_join(write_tid, NULL);
 
 	// now the read and write threads are closed
 	printf("\n");
@@ -706,7 +713,7 @@ void Autopilot_Interface::start_read_thread()
 // ------------------------------------------------------------------------------
 void Autopilot_Interface::start_write_thread(void)
 {
-	if (not writing_status == false)
+	if (writing_status != 0)
 	{
 		fprintf(stderr, "write thread already running\n");
 		return;
@@ -803,7 +810,7 @@ void Autopilot_Interface::write_thread(void)
 //  Pthread Starter Helper Functions
 // ------------------------------------------------------------------------------
 
-void* start_autopilot_interface_read_thread(void *args)
+DWORD WINAPI start_autopilot_interface_read_thread(void *args)
 {
 	// takes an autopilot object argument
 	Autopilot_Interface *autopilot_interface = (Autopilot_Interface *)args;
@@ -815,7 +822,7 @@ void* start_autopilot_interface_read_thread(void *args)
 	return NULL;
 }
 
-void* start_autopilot_interface_write_thread(void *args)
+DWORD WINAPI start_autopilot_interface_write_thread(void *args)
 {
 	// takes an autopilot object argument
 	Autopilot_Interface *autopilot_interface = (Autopilot_Interface *)args;
@@ -825,4 +832,52 @@ void* start_autopilot_interface_write_thread(void *args)
 
 	// done!
 	return NULL;
+}
+
+void ErrorHandler(LPTSTR lpszFunction)
+{
+	// Retrieve the system error message for the last-error code.
+
+	LPVOID lpMsgBuf;
+	LPVOID lpDisplayBuf;
+	DWORD dw = GetLastError();
+
+	FormatMessage(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER |
+		FORMAT_MESSAGE_FROM_SYSTEM |
+		FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL,
+		dw,
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(LPTSTR)&lpMsgBuf,
+		0, NULL);
+
+	// Display the error message.
+
+	lpDisplayBuf = (LPVOID)LocalAlloc(LMEM_ZEROINIT,
+		(lstrlen((LPCTSTR)lpMsgBuf) + lstrlen((LPCTSTR)lpszFunction) + 40) * sizeof(TCHAR));
+	StringCchPrintf((LPTSTR)lpDisplayBuf,
+		LocalSize(lpDisplayBuf) / sizeof(TCHAR),
+		TEXT("%s failed with error %d: %s"),
+		lpszFunction, dw, lpMsgBuf);
+	MessageBox(NULL, (LPCTSTR)lpDisplayBuf, TEXT("Error"), MB_OK);
+
+	// Free error-handling buffer allocations.
+
+	LocalFree(lpMsgBuf);
+	LocalFree(lpDisplayBuf);
+}
+
+
+void usleep(__int64 usec)
+{
+	HANDLE timer;
+	LARGE_INTEGER ft;
+
+	ft.QuadPart = -(10 * usec); // Convert to 100 nanosecond interval, negative value indicates relative time
+
+	timer = CreateWaitableTimer(NULL, TRUE, NULL);
+	SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0);
+	WaitForSingleObject(timer, INFINITE);
+	CloseHandle(timer);
 }
