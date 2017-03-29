@@ -45,18 +45,15 @@
 * @author Jaycee Lock,    <jaycee.lock@gmail.com>
 * @author Lorenz Meier,   <lm@inf.ethz.ch>
 *
-* Modified by Spencer Watza, <s.g.watza@gmail.com>
+* Modified by:
+*	Spencer Watza, <s.g.watza@gmail.com>
 * For Windows Use
 */
 
 #pragma once
-
 #ifndef AUTOPILOT_INTERFACE_H_
 #define AUTOPILOT_INTERFACE_H_
 
-// ********************
-//      INCLUDES
-// ********************
 
 #include "common/mavlink.h"
 #include "serial_port.h"

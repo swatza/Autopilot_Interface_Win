@@ -1,3 +1,9 @@
+/**
+* @file utils.cpp
+*
+* @author Spencer Watza, <s.g.watza@gmail.com>
+* @author James Jenkins, <james.p.jenkins@wmich.edu>
+*/
 #include <stdio.h>
 #include <Windows.h>
 

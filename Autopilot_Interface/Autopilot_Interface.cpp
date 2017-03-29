@@ -45,7 +45,9 @@
 * @author Jaycee Lock,    <jaycee.lock@gmail.com>
 * @author Lorenz Meier,   <lm@inf.ethz.ch>
 *
-* Modified by Spencer Watza, <s.g.watza@gmail.com>
+* Modified by:
+*	Spencer Watza, <s.g.watza@gmail.com>
+*	James Jenkins, <james.p.jenkins@wmich.edu>
 * For Windows Use
 */
 
