@@ -58,7 +58,7 @@
 //      INCLUDES
 // ********************
 
-#include <common/mavlink.h>
+#include "common/mavlink.h"
 #include "serial_port.h"
 
 // ********************
@@ -229,14 +229,14 @@ void ErrorHandler(LPTSTR lpszFunction);
 * important that one way or another this program signals offboard mode exit,
 * otherwise the vehicle will go into failsafe.
 */
-class Autopilot_Interface
+class AutopilotInterface
 {
 
 public:
 
-	Autopilot_Interface();
-	Autopilot_Interface(Serial_Port *serial_port_);
-	~Autopilot_Interface();
+	AutopilotInterface();
+	AutopilotInterface(SerialPort *serial_port_);
+	~AutopilotInterface();
 
 	char reading_status;
 	char writing_status;
@@ -269,7 +269,7 @@ public:
 private:
 
 	//REPLACE WITH WINDOWS Serial Port Class
-	Serial_Port *serial_port;
+	SerialPort *serial_port;
 
 	bool time_to_exit;
 

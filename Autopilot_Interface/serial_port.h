@@ -58,17 +58,17 @@
 // ------------------------------------------------------------------------------
 
 #include <cstdlib>
-#include <stdio.h>   // Standard input/output definitions
+#include <stdio.h>
 //#include <unistd.h>  // UNIX standard function definitions
 #include <fcntl.h>   // File control definitions
 //#include <termios.h> // POSIX terminal control definitions
 //#include <pthread.h> // This uses POSIX Threads
 #include <signal.h>
-#include "windows.h"
-#include "Serial.h"
-#include "stdafx.h"
+#include <windows.h>
+#include "cserial.h"
+#include "utils.h"
 
-#include <common/mavlink.h>
+#include "common/mavlink.h"
 
 
 // ------------------------------------------------------------------------------
@@ -92,34 +92,21 @@
 #define SERIAL_PORT_ERROR -1;
 
 
-// ------------------------------------------------------------------------------
-//   Prototypes
-// ------------------------------------------------------------------------------
-
-//class Serial_Port;
-
-void usleep(__int64 usec);
-
-// ----------------------------------------------------------------------------------
-//   Serial Port Manager Class
-// ----------------------------------------------------------------------------------
 /*
-* Serial Port Class
-*
 * This object handles the opening and closing of the offboard computer's
 * serial port over which we'll communicate.  It also has methods to write
 * a byte stream buffer.  MAVlink is not used in this object yet, it's just
 * a serialization interface.  To help with read and write pthreading, it
 * gaurds any port operation with a pthread mutex.
 */
-class Serial_Port
+class SerialPort
 {
 
 public:
 
-	Serial_Port();
-	Serial_Port(int portNum_, int baudrate_);
-	~Serial_Port();
+	SerialPort();
+	SerialPort(int portNum_, int baudrate_);
+	~SerialPort();
 
 	CSerial port;
 
@@ -143,7 +130,5 @@ private:
 	int _write_port(char *buf, unsigned len);
 
 };
-
-
 
 #endif // SERIAL_PORT_H_

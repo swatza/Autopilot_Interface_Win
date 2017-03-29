@@ -51,52 +51,31 @@
 
 #include "mavlink_control.h"
 #include "stdafx.h"
+#include "utils.h"
 
-// ------------------------------------------------------------------------------
-//   TOP
-// ------------------------------------------------------------------------------
+
 int
 top(int argc, char **argv)
 {
-
-	// --------------------------------------------------------------------------
-	//   PARSE THE COMMANDS
-	// --------------------------------------------------------------------------
-
-	// Default input arguments
-	//THIS NEEDS TO BE CHANGED!
-#ifdef __APPLE__
-	char *uart_name = (char*)"/dev/tty.usbmodem1";
-#else
-	char *uart_name = (char*)"/dev/ttyUSB0";
-#endif
+	// Defaults
 	int baudrate = 57600;
-	int portNum = 1;
+	int portNum = 3;
 
-	// do the parse, will throw an int if it fails
 	parse_commandline(argc, argv, portNum, baudrate);
 
-
-	// --------------------------------------------------------------------------
-	//   PORT and THREAD STARTUP
-	// --------------------------------------------------------------------------
-
 	/*
-	* Instantiate a serial port object
-	*
 	* This object handles the opening and closing of the offboard computer's
 	* serial port over which it will communicate to an autopilot.  It has
 	* methods to read and write a mavlink_message_t object.  To help with read
 	* and write in the context of pthreading, it gaurds port operations with a
 	* pthread mutex lock.
-	*
 	*/
-	Serial_Port serial_port(portNum, baudrate);
-
+	SerialPort serial_port(portNum, baudrate);
+	//serial_port.debug = TRUE;
+	std::cout << "Finished creating serial port" << std::endl;
+	serial_port.start();
 
 	/*
-	* Instantiate an autopilot interface object
-	*
 	* This starts two threads for read and write over MAVlink. The read thread
 	* listens for any MAVlink message and pushes it to the current_messages
 	* attribute.  The write thread at the moment only streams a position target
@@ -107,81 +86,47 @@ top(int argc, char **argv)
 	* method.  Signal the exit of this mode with disable_offboard_control().  It's
 	* important that one way or another this program signals offboard mode exit,
 	* otherwise the vehicle will go into failsafe.
-	*
 	*/
-	Autopilot_Interface autopilot_interface(&serial_port);
+	AutopilotInterface autopilot_interface(&serial_port);
+	std::cout << "Finished creating autopilot interface" << std::endl;
 
-	/*
-	* Setup interrupt signal handler
-	*
-	* Responds to early exits signaled with Ctrl-C.  The handler will command
-	* to exit offboard mode if required, and close threads and the port.
-	* The handler in this example needs references to the above objects.
-	*
-	*/
+	// Setup interrupt signal handler
 	serial_port_quit = &serial_port;
 	autopilot_interface_quit = &autopilot_interface;
 	signal(SIGINT, quit_handler);
 
-	/*
-	* Start the port and autopilot_interface
-	* This is where the port is opened, and read and write threads are started.
-	*/
-
+	// Start autopilot interface
+	std::cout << "Starting autopilot interface" << std::endl;
 	autopilot_interface.start();
 
-
-	// --------------------------------------------------------------------------
-	//   RUN COMMANDS
-	// --------------------------------------------------------------------------
-
-	/*
-	* Now we can implement the algorithm we want on top of the autopilot interface
-	*/
+	// Now we can implement the algorithm we want on top of the autopilot interface
+	std::cout << "Running commands" << std::endl;
 	commands(autopilot_interface);
 
-
-	// --------------------------------------------------------------------------
-	//   THREAD and PORT SHUTDOWN
-	// --------------------------------------------------------------------------
-
-	/*
-	* Now that we are done we can stop the threads and close the port
-	*/
+	// Wrap up
 	autopilot_interface.stop();
 	serial_port.stop();
 
-
-	// --------------------------------------------------------------------------
-	//   DONE
-	// --------------------------------------------------------------------------
-
-	// woot!
 	return 0;
-
 }
 
-// ------------------------------------------------------------------------------
-//   COMMANDS
-// ------------------------------------------------------------------------------
 
 void
-commands(Autopilot_Interface &api)
+commands(AutopilotInterface &api)
 {
+	std::cout << "Enabling offboard control" << std::endl;
 
-	// --------------------------------------------------------------------------
-	//   START OFFBOARD MODE
-	// --------------------------------------------------------------------------
-
+	// Start offboard mode so pixhawk doesn't go to failsafe
 	api.enable_offboard_control();
-	usleep(100); // give some time to let it sink in
 
-				 // now the autopilot is accepting setpoint commands
+	// give some time to let it sink in
+	usleep(100);
 
+	// now the autopilot is accepting setpoint commands
 
-				 // --------------------------------------------------------------------------
-				 //   SEND OFFBOARD COMMANDS
-				 // --------------------------------------------------------------------------
+	// --------------------------------------------------------------------------
+	//   SEND OFFBOARD COMMANDS
+	// --------------------------------------------------------------------------
 	printf("SEND OFFBOARD COMMANDS\n");
 
 	// initialize command data strtuctures
@@ -189,7 +134,6 @@ commands(Autopilot_Interface &api)
 	mavlink_set_position_target_local_ned_t ip = api.initial_position;
 
 	// autopilot_interface.h provides some helper functions to build the command
-
 
 	// Example 1 - Set Velocity
 	//	set_velocity( -1.0       , // [m/s]
@@ -199,22 +143,21 @@ commands(Autopilot_Interface &api)
 
 	// Example 2 - Set Position
 	set_position(ip.x - 5.0, // [m]
-		ip.y - 5.0, // [m]
-		ip.z, // [m]
-		sp);
+				 ip.y - 5.0, // [m]
+				 ip.z, // [m]
+				 sp);
 
 
 	// Example 1.2 - Append Yaw Command
 	set_yaw(ip.yaw, // [rad]
-		sp);
+			sp);
 
 	// SEND THE COMMAND
 	api.update_setpoint(sp);
 	// NOW pixhawk will try to move
 
 	// Wait for 8 seconds, check position
-	for (int i = 0; i < 8; i++)
-	{
+	for (int i = 0; i < 8; i++) {
 		mavlink_local_position_ned_t pos = api.current_messages.local_position_ned;
 		printf("%i CURRENT POSITION XYZ = [ % .4f , % .4f , % .4f ] \n", i, pos.x, pos.y, pos.z);
 		Sleep(1);
@@ -223,14 +166,10 @@ commands(Autopilot_Interface &api)
 	printf("\n");
 
 
-	// --------------------------------------------------------------------------
-	//   STOP OFFBOARD MODE
-	// --------------------------------------------------------------------------
-
+	// stop offboard mode
 	api.disable_offboard_control();
 
 	// now pixhawk isn't listening to setpoint commands
-
 
 	// --------------------------------------------------------------------------
 	//   GET A MESSAGE
@@ -258,18 +197,10 @@ commands(Autopilot_Interface &api)
 
 	printf("\n");
 
-
-	// --------------------------------------------------------------------------
-	//   END OF COMMANDS
-	// --------------------------------------------------------------------------
-
 	return;
-
 }
 
-// ------------------------------------------------------------------------------
-//   Parse Command Line
-// ------------------------------------------------------------------------------
+
 // throws EXIT_FAILURE if could not open the port
 void
 parse_commandline(int argc, char **argv, int &portNum, int &baudrate)
@@ -292,8 +223,7 @@ parse_commandline(int argc, char **argv, int &portNum, int &baudrate)
 			if (argc > i + 1) {
 				portNum = atoi(argv[i + 1]);
 
-			}
-			else {
+			} else {
 				printf("%s\n", commandline_usage);
 				throw EXIT_FAILURE;
 			}
@@ -304,17 +234,14 @@ parse_commandline(int argc, char **argv, int &portNum, int &baudrate)
 			if (argc > i + 1) {
 				baudrate = atoi(argv[i + 1]);
 
-			}
-			else {
+			} else {
 				printf("%s\n", commandline_usage);
 				throw EXIT_FAILURE;
 			}
 		}
-
 	}
 	// end: for each input argument
 
-	// Done!
 	return;
 }
 
@@ -325,57 +252,31 @@ parse_commandline(int argc, char **argv, int &portNum, int &baudrate)
 void
 quit_handler(int sig)
 {
-	printf("\n");
-	printf("TERMINATING AT USER REQUEST\n");
-	printf("\n");
+	printf("\nTERMINATING AT USER REQUEST\n\n");
 
 	// autopilot interface
 	try {
 		autopilot_interface_quit->handle_quit(sig);
-	}
-	catch (int error) {}
+	} catch (int error) {}
 
 	// serial port
 	try {
 		serial_port_quit->handle_quit(sig);
-	}
-	catch (int error) {}
+	} catch (int error) {}
 
-	// end program here
 	exit(0);
-
 }
 
-// ------------------------------------------------------------------------------
-//   Main
-// ------------------------------------------------------------------------------
+
 int
 main(int argc, char **argv)
 {
 	// This program uses throw, wrap one big try/catch here
-	try
-	{
+	try {
 		int result = top(argc, argv);
 		return result;
-	}
-
-	catch (int error)
-	{
+	} catch (int error) {
 		fprintf(stderr, "mavlink_control threw exception %i \n", error);
 		return error;
 	}
-
-}
-
-void usleep(__int64 usec)
-{
-	HANDLE timer;
-	LARGE_INTEGER ft;
-
-	ft.QuadPart = -(10 * usec); // Convert to 100 nanosecond interval, negative value indicates relative time
-
-	timer = CreateWaitableTimer(NULL, TRUE, NULL);
-	SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0);
-	WaitForSingleObject(timer, INFINITE);
-	CloseHandle(timer);
 }

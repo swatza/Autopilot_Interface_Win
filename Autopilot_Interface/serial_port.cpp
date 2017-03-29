@@ -49,87 +49,56 @@
 * For Windows Use
 */
 
-// ------------------------------------------------------------------------------
-//   Includes
-// ------------------------------------------------------------------------------
 
 #include "serial_port.h"
 #include "stdafx.h"
 
 
-// ----------------------------------------------------------------------------------
-//   Serial Port Manager Class
-// ----------------------------------------------------------------------------------
-
-// ------------------------------------------------------------------------------
-//   Con/De structors
-// ------------------------------------------------------------------------------
-Serial_Port::Serial_Port(int portNum_, int baudrate_)
+SerialPort::SerialPort(int portNum_, int baudrate_)
 {
-	//Create instance of the serial interface
 	port = CSerial();
-	//open it with the given port number and baudrate
 	port.Open(portNum_, baudrate_);
 }
 
-Serial_Port::Serial_Port()
-{
-	//IS THIS NEEDED
-}
+SerialPort::SerialPort()
+{}
 
-Serial_Port::~Serial_Port()
+SerialPort::~SerialPort()
 {
 	// destroy mutex
 }
 
-// ------------------------------------------------------------------------------
-//   Read from Serial
-// ------------------------------------------------------------------------------
+
 int
-Serial_Port::
-read_message(mavlink_message_t &message)
+SerialPort::read_message(mavlink_message_t &message)
 {
 	uint8_t          cp;
 	mavlink_status_t status;
 	uint8_t          msgReceived = false;
 
-	// --------------------------------------------------------------------------
-	//   READ FROM PORT
-	// --------------------------------------------------------------------------
-
 	// this function locks the port during read
 	int result = _read_port(cp);
 
-
-	// --------------------------------------------------------------------------
 	//   PARSE MESSAGE
-	// --------------------------------------------------------------------------
-	if (result > 0)
-	{
+	if (result > 0) {
 		// the parsing
 		msgReceived = mavlink_parse_char(MAVLINK_COMM_1, cp, &message, &status);
 
 		// check for dropped packets
-		if ((lastStatus.packet_rx_drop_count != status.packet_rx_drop_count) && debug)
-		{
+		if ((lastStatus.packet_rx_drop_count != status.packet_rx_drop_count) && debug) {
 			printf("ERROR: DROPPED %d PACKETS\n", status.packet_rx_drop_count);
 			unsigned char v = cp;
 			fprintf(stderr, "%02x ", v);
 		}
+
 		lastStatus = status;
+	} else {
+		// Couldn't/didn't read from port
+		//fprintf(stderr, "ERROR: Could not read from fd %d\n", fd);
 	}
 
-	// Couldn't read from port
-	else
-	{
-		fprintf(stderr, "ERROR: Could not read from fd %d\n", fd);
-	}
-
-	// --------------------------------------------------------------------------
-	//   DEBUGGING REPORTS
-	// --------------------------------------------------------------------------
-	if (msgReceived && debug)
-	{
+	// Debugging reports
+	if (msgReceived && debug) {
 		// Report info
 		printf("Received message from serial with ID #%d (sys:%d|comp:%d):\n", message.msgid, message.sysid, message.compid);
 
@@ -141,16 +110,13 @@ read_message(mavlink_message_t &message)
 		unsigned int messageLength = mavlink_msg_to_send_buffer(buffer, &message);
 
 		// message length error
-		if (messageLength > MAVLINK_MAX_PACKET_LEN)
-		{
-			fprintf(stderr, "\nFATAL ERROR: MESSAGE LENGTH IS LARGER THAN BUFFER SIZE\n");
-		}
-
+		//	        or
 		// print out the buffer
-		else
-		{
-			for (i = 0; i<messageLength; i++)
-			{
+		if (messageLength > MAVLINK_MAX_PACKET_LEN) {
+			fprintf(stderr, "\nFATAL ERROR: MESSAGE LENGTH IS LARGER THAN BUFFER SIZE\n");
+		} else {
+			
+			for (i = 0; i < messageLength; i++) {
 				unsigned char v = buffer[i];
 				fprintf(stderr, "%02x ", v);
 			}
@@ -158,14 +124,11 @@ read_message(mavlink_message_t &message)
 		}
 	}
 
-	// Done!
 	return msgReceived;
 }
 
-// ------------------------------------------------------------------------------
-//   Write to Serial
-// ------------------------------------------------------------------------------
-int Serial_Port::write_message(const mavlink_message_t &message)
+
+int SerialPort::write_message(const mavlink_message_t &message)
 {
 	char buf[300];
 
@@ -181,31 +144,30 @@ int Serial_Port::write_message(const mavlink_message_t &message)
 // ------------------------------------------------------------------------------
 //   Convenience Functions
 // ------------------------------------------------------------------------------
-void Serial_Port::start()
+void SerialPort::start()
 {
-	//I don't think we need this	
+	//I don't think we need this
 	if (port.IsOpened())
 		status = 1;
 	else
 		status = 0;
 }
 
-void Serial_Port::stop()
+void SerialPort::stop()
 {
 	//close_serial();
-	port.Close;
+	port.Close();
 }
 
 
 // ------------------------------------------------------------------------------
 //   Quit Handler
 // ------------------------------------------------------------------------------
-void Serial_Port::handle_quit(int sig)
+void SerialPort::handle_quit(int sig)
 {
 	try {
 		stop();
-	}
-	catch (int error) {
+	} catch (int error) {
 		fprintf(stderr, "Warning, could not stop serial port\n");
 	}
 }
@@ -215,14 +177,11 @@ void Serial_Port::handle_quit(int sig)
 //   Read Port with Lock
 // ------------------------------------------------------------------------------
 int
-Serial_Port::
+SerialPort::
 _read_port(uint8_t &cp)
 {
-
-
 	//int result = read(fd, &cp, 1);
 	int result = port.ReadData(&cp, 1);
-
 
 	return result;
 }
@@ -231,13 +190,11 @@ _read_port(uint8_t &cp)
 // ------------------------------------------------------------------------------
 //   Write Port with Lock
 // ------------------------------------------------------------------------------
-int Serial_Port::_write_port(char *buf, unsigned len)
+int SerialPort::_write_port(char *buf, unsigned len)
 {
-
 	// Write packet via serial link
 	const int bytesWritten = port.SendData(buf, len);
 	//const int bytesWritten = static_cast<int>(write(fd, buf, len))
-
 
 	return bytesWritten;
 }

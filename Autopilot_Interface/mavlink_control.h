@@ -53,7 +53,6 @@
 #pragma once
 
 #include <iostream>
-#include <stdio.h>
 #include <cstdlib>
 //#include <unistd.h> unix standard library
 #include <cmath>
@@ -64,8 +63,10 @@
 #include <time.h>
 #include "stdafx.h"
 
+/*
 using std::string;
 using namespace std;
+*/
 
 #include <common/mavlink.h>
 
@@ -79,10 +80,10 @@ using namespace std;
 int main(int argc, char **argv);
 int top(int argc, char **argv);
 
-void commands(Autopilot_Interface &autopilot_interface);
+void commands(AutopilotInterface &autopilot_interface);
 void parse_commandline(int argc, char **argv, int &portNum, int &baudrate);
 
 // quit handler
-Autopilot_Interface *autopilot_interface_quit;
-Serial_Port *serial_port_quit;
+AutopilotInterface *autopilot_interface_quit;
+SerialPort *serial_port_quit;
 void quit_handler(int sig);
