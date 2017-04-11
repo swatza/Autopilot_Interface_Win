@@ -60,14 +60,19 @@ SerialPort::SerialPort(int portNum_, int baudrate_)
 {
 	port = CSerial();
 	port.Open(portNum_, baudrate_);
-}
 
-SerialPort::SerialPort()
-{}
+	lock = CreateMutex(NULL, FALSE, NULL);
+}
 
 SerialPort::~SerialPort()
 {
 	// destroy mutex
+}
+
+bool
+SerialPort::isOpen()
+{
+	return port.IsOpened();
 }
 
 
@@ -78,12 +83,12 @@ SerialPort::read_message(mavlink_message_t &message)
 	mavlink_status_t status;
 	uint8_t          msgReceived = false;
 
-	// this function locks the port during read
-	int result = _read_port(cp);
+	WaitForSingleObject(lock, INFINITE);
+	int result = port.ReadData(&cp, 1);
+	ReleaseMutex(lock);
 
-	//   PARSE MESSAGE
 	if (result > 0) {
-		// the parsing
+		// Parse the message
 		msgReceived = mavlink_parse_char(MAVLINK_COMM_1, cp, &message, &status);
 
 		// check for dropped packets
@@ -94,9 +99,6 @@ SerialPort::read_message(mavlink_message_t &message)
 		}
 
 		lastStatus = status;
-	} else {
-		// Couldn't/didn't read from port
-		//fprintf(stderr, "ERROR: Could not read from fd %d\n", fd);
 	}
 
 	// Debugging reports
@@ -138,65 +140,24 @@ int SerialPort::write_message(const mavlink_message_t &message)
 	unsigned len = mavlink_msg_to_send_buffer((uint8_t*)buf, &message);
 
 	// Write buffer to serial port, locks port while writing
-	int bytesWritten = _write_port(buf, len);
+	WaitForSingleObject(lock, INFINITE);
+	int bytesWritten = port.SendData(buf, len);
+	ReleaseMutex(lock);
 
 	return bytesWritten;
 }
 
-// ------------------------------------------------------------------------------
-//   Convenience Functions
-// ------------------------------------------------------------------------------
-void SerialPort::start()
-{
-	//I don't think we need this
-	if (port.IsOpened())
-		status = 1;
-	else
-		status = 0;
-}
-
-void SerialPort::stop()
+void SerialPort::close()
 {
 	//close_serial();
 	port.Close();
 }
 
-
-// ------------------------------------------------------------------------------
-//   Quit Handler
-// ------------------------------------------------------------------------------
 void SerialPort::handle_quit(int sig)
 {
 	try {
-		stop();
+		close();
 	} catch (int error) {
 		fprintf(stderr, "Warning, could not stop serial port\n");
 	}
-}
-
-
-// ------------------------------------------------------------------------------
-//   Read Port with Lock
-// ------------------------------------------------------------------------------
-int
-SerialPort::
-_read_port(uint8_t &cp)
-{
-	//int result = read(fd, &cp, 1);
-	int result = port.ReadData(&cp, 1);
-
-	return result;
-}
-
-
-// ------------------------------------------------------------------------------
-//   Write Port with Lock
-// ------------------------------------------------------------------------------
-int SerialPort::_write_port(char *buf, unsigned len)
-{
-	// Write packet via serial link
-	const int bytesWritten = port.SendData(buf, len);
-	//const int bytesWritten = static_cast<int>(write(fd, buf, len))
-
-	return bytesWritten;
 }

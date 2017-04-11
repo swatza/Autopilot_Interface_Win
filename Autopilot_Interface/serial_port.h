@@ -55,14 +55,11 @@
 #ifndef SERIAL_PORT_H_
 #define SERIAL_PORT_H_
 
-// ------------------------------------------------------------------------------
-//   Includes
-// ------------------------------------------------------------------------------
 
 #include <cstdlib>
 #include <stdio.h>
 //#include <unistd.h>  // UNIX standard function definitions
-#include <fcntl.h>   // File control definitions
+#include <fcntl.h>     // File control definitions
 //#include <termios.h> // POSIX terminal control definitions
 //#include <pthread.h> // This uses POSIX Threads
 #include <signal.h>
@@ -72,10 +69,6 @@
 
 #include "common/mavlink.h"
 
-
-// ------------------------------------------------------------------------------
-//   Defines
-// ------------------------------------------------------------------------------
 
 // The following two non-standard baudrates should have been defined by the system
 // If not, just fallback to number
@@ -106,7 +99,6 @@ class SerialPort
 
 public:
 
-	SerialPort();
 	SerialPort(int portNum_, int baudrate_);
 	~SerialPort();
 
@@ -115,22 +107,22 @@ public:
 	bool debug;
 	int  status;
 
+	bool isOpen();
+
 	int read_message(mavlink_message_t &message);
 	int write_message(const mavlink_message_t &message);
 
-	void start();
-	void stop();
+	void close();
 
 	void handle_quit(int sig);
+
+	
 
 private:
 
 	int  fd;
 	mavlink_status_t lastStatus;
-
-	int  _read_port(uint8_t &cp);
-	int _write_port(char *buf, unsigned len);
-
+	HANDLE lock;
 };
 
 #endif // SERIAL_PORT_H_
