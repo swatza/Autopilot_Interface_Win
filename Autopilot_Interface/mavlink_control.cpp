@@ -51,9 +51,11 @@
 * For Windows Use
 */
 
-#include "mavlink_control.h"
 #include "stdafx.h"
+
+#include "mavlink_control.h"
 #include "utils.h"
+#include "mavlink_utils.h"
 
 
 int
@@ -61,7 +63,7 @@ top(int argc, char **argv)
 {
 	// Defaults
 	int baudrate = 57600;
-	int portNum = 3;
+	int portNum = 4;
 
 	parse_commandline(argc, argv, portNum, baudrate);
 
@@ -75,7 +77,6 @@ top(int argc, char **argv)
 	SerialPort serial_port(portNum, baudrate);
 	//serial_port.debug = TRUE;
 	std::cout << "Finished creating serial port" << std::endl;
-	serial_port.start();
 
 	/*
 	* This starts two threads for read and write over MAVlink. The read thread
@@ -107,7 +108,7 @@ top(int argc, char **argv)
 
 	// Wrap up
 	autopilot_interface.stop();
-	serial_port.stop();
+	serial_port.close();
 
 	return 0;
 }
@@ -116,90 +117,90 @@ top(int argc, char **argv)
 void
 commands(AutopilotInterface &api)
 {
-	std::cout << "Enabling offboard control" << std::endl;
+	usleep(26000000);
+	printf("Enabling offboard control\n");
 
 	// Start offboard mode so pixhawk doesn't go to failsafe
 	api.enable_offboard_control();
-
 	// give some time to let it sink in
 	usleep(100);
+	// autopilot is now accepting setpoint commands
 
-	// now the autopilot is accepting setpoint commands
-
-	// --------------------------------------------------------------------------
-	//   SEND OFFBOARD COMMANDS
-	// --------------------------------------------------------------------------
 	printf("SEND OFFBOARD COMMANDS\n");
 
-	// initialize command data strtuctures
+	mavlink_message_t message;
+	printf("api.system_id = %d; api.companion_id = %d", api.system_id, api.companion_id);
+	mavlink_rc_channels_override_t rcco;
+	rcco.chan1_raw = 0;
+	rcco.chan4_raw = 1015;
+	mavlink_msg_rc_channels_override_encode(api.system_id, api.companion_id, &message, &rcco);
+	api.write_message(message);
+	Sleep(500);
+	
+	/*
+	mavlink_servo_output_raw_t servo_output;
+	servo_output.servo3_raw = 800;
+	mavlink_msg_servo_output_raw_encode(api.system_id, api.companion_id, &servo_output, &message);
+	for(int i=0; i < 1000; i++){
+		int len = api.write_message(message);
+		if (len <= 0) {
+			fprintf(stderr, "COULD NOT SEND MANUAL SERVO OUT");
+		}
+		Sleep(2);
+	}
+	*/
+	
 	mavlink_set_position_target_local_ned_t sp;
 	mavlink_set_position_target_local_ned_t ip = api.initial_position;
 
 	// autopilot_interface.h provides some helper functions to build the command
+	// e.g. set_velocity(), set_position(), set_yaw()
 
-	// Example 1 - Set Velocity
-	//	set_velocity( -1.0       , // [m/s]
-	//				  -1.0       , // [m/s]
-	//				   0.0       , // [m/s]
-	//				   sp        );
+	// rad/sec
+	//set_yaw(ip.yaw, sp);
+	set_position(ip.x - 10.0, // [m]
+		ip.y - 10.0, // [m]
+		ip.z -10, // [m]
+		sp);
 
-	// Example 2 - Set Position
-	set_position(ip.x - 5.0, // [m]
-				 ip.y - 5.0, // [m]
-				 ip.z, // [m]
-				 sp);
+	set_yaw(ip.yaw-10, sp);
 
-
-	// Example 1.2 - Append Yaw Command
-	set_yaw(ip.yaw, // [rad]
-			sp);
-
-	// SEND THE COMMAND
 	api.update_setpoint(sp);
 	// NOW pixhawk will try to move
 
-	// Wait for 8 seconds, check position
 	for (int i = 0; i < 8; i++) {
 		mavlink_local_position_ned_t pos = api.current_messages.local_position_ned;
-		printf("%i CURRENT POSITION XYZ = [ % .4f , % .4f , % .4f ] \n", i, pos.x, pos.y, pos.z);
+		printf("%i CURRENT VELOCITY XYZ = [ % .4f , % .4f , % .4f ] \n", i, pos.vx, pos.vy, pos.vz);
 		Sleep(1);
 	}
 
-	printf("\n");
-
-
-	// stop offboard mode
 	api.disable_offboard_control();
 
-	// now pixhawk isn't listening to setpoint commands
-
-	// --------------------------------------------------------------------------
-	//   GET A MESSAGE
-	// --------------------------------------------------------------------------
-	printf("READ SOME MESSAGES \n");
+	printf("\nREAD SOME MESSAGES \n");
 
 	// copy current messages
-	Mavlink_Messages messages = api.current_messages;
+	uint64_t big = 0;
+	int msgs = 0;
+	while(msgs < 1){
+		Mavlink_Messages messages = api.current_messages;
 
-	// local position in ned frame
-	mavlink_local_position_ned_t pos = messages.local_position_ned;
-	printf("Got message LOCAL_POSITION_NED (spec: https://pixhawk.ethz.ch/mavlink/#LOCAL_POSITION_NED)\n");
-	printf("    pos  (NED):  %f %f %f (m)\n", pos.x, pos.y, pos.z);
+		if (messages.highres_imu.time_usec != big) {
+			big = messages.highres_imu.time_usec;
+			// hires imu
 
-	// hires imu
-	mavlink_highres_imu_t imu = messages.highres_imu;
-	printf("Got message HIGHRES_IMU (spec: https://pixhawk.ethz.ch/mavlink/#HIGHRES_IMU)\n");
-	printf("    ap time:     %llu \n", imu.time_usec);
-	printf("    acc  (NED):  % f % f % f (m/s^2)\n", imu.xacc, imu.yacc, imu.zacc);
-	printf("    gyro (NED):  % f % f % f (rad/s)\n", imu.xgyro, imu.ygyro, imu.zgyro);
-	printf("    mag  (NED):  % f % f % f (Ga)\n", imu.xmag, imu.ymag, imu.zmag);
-	printf("    baro:        %f (mBar) \n", imu.abs_pressure);
-	printf("    altitude:    %f (m) \n", imu.pressure_alt);
-	printf("    temperature: %f C \n", imu.temperature);
+			mavlink_highres_imu_t imu = messages.highres_imu;
+			printf("Got message HIGHRES_IMU (spec: https://pixhawk.ethz.ch/mavlink/#HIGHRES_IMU)\n");
+			printf("    ap time:     %llu \n", imu.time_usec);
+			printf("    acc  (NED):  % f % f % f (m/s^2)\n", imu.xacc, imu.yacc, imu.zacc);
+			printf("    gyro (NED):  % f % f % f (rad/s)\n", imu.xgyro, imu.ygyro, imu.zgyro);
+			printf("    mag  (NED):  % f % f % f (Ga)\n", imu.xmag, imu.ymag, imu.zmag);
+			printf("    altitude:    %f (m) \n", imu.pressure_alt);
+			printf("    temperature: %f C \n", imu.temperature);
 
-	printf("\n");
-
-	return;
+			printf("\n");
+			msgs += 1;
+		}
+	}
 }
 
 
@@ -242,15 +243,9 @@ parse_commandline(int argc, char **argv, int &portNum, int &baudrate)
 			}
 		}
 	}
-	// end: for each input argument
-
-	return;
 }
 
-// ------------------------------------------------------------------------------
-//   Quit Signal Handler
-// ------------------------------------------------------------------------------
-// this function is called when you press Ctrl-C
+// Signal handler - this function is called when you press Ctrl-C
 void
 quit_handler(int sig)
 {
