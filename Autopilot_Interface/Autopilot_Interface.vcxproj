@@ -83,7 +83,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>C:\Users\APODS\Downloads\Pixhawk\c_library_v1-7d0aa0205ef8bd13bf855b21d3ebe054dc9109ef\c_library_v1;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>c_library_v1;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -119,12 +119,14 @@
     <ClCompile Include="autopilot_interface.cpp" />
     <ClCompile Include="mavlink_control.cpp" />
     <ClCompile Include="cserial.cpp" />
+    <ClCompile Include="mavlink_utils.cpp" />
     <ClCompile Include="serial_port.cpp" />
     <ClCompile Include="utils.cpp" />
     <ClCompile Include="stdafx.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Autopilot_Interface.h" />
+    <ClInclude Include="mavlink_utils.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="mavlink_control.h" />
     <ClInclude Include="cserial.h" />

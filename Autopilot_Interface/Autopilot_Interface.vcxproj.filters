@@ -33,6 +33,9 @@
     <ClCompile Include="cserial.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="mavlink_utils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Autopilot_Interface.h">
@@ -48,6 +51,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="cserial.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="mavlink_utils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
