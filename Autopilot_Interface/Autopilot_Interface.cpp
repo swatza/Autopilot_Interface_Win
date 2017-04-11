@@ -52,154 +52,33 @@
 */
 
 
-
-// Autopilot_Interface.cpp : Defines the entry point for the console application.
-//
 #include <stdio.h>
-#include <Windows.h>
+#include <stdint.h>
 #include <strsafe.h>
+#include <Windows.h>
 
 #include "stdafx.h"
-#include "Autopilot_Interface.h"
-#include "stdint.h"
 #include "BaseTsd.h"
+
+#include "common/mavlink.h"
+
+#include "Autopilot_Interface.h"
+#include "serial_port.h"
 #include "utils.h"
+#include "mavlink_utils.h"
 
-
-//should this be ulonglong or uint64? or something else
-uint64_t get_time_usec()
-{
-	SYSTEMTIME st;
-	FILETIME ft;
-	//static struct timeval _time_stamp;
-	GetSystemTime(&st);
-	SystemTimeToFileTime(&st, &ft);
-	_ULARGE_INTEGER li;
-	li.HighPart = ft.dwHighDateTime;
-	li.LowPart = ft.dwLowDateTime;
-	return li.QuadPart;
-}
-
-// ********************
-//   Setpoint Helper Functions
-// ********************
-
-// choose one of the next three
-
-/*
-* Set target local ned position
-*
-* Modifies a mavlink_set_position_target_local_ned_t struct with target XYZ locations
-* in the Local NED frame, in meters.
-*/
-
-void set_position(float x, float y, float z, mavlink_set_position_target_local_ned_t &sp)
-{
-	sp.type_mask =
-		MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_POSITION;
-
-	sp.coordinate_frame = MAV_FRAME_LOCAL_NED;
-
-	sp.x = x;
-	sp.y = y;
-	sp.z = z;
-
-	printf("POSITION SETPOITN XYZ = [%.4f, %.4f, %.4f] \n", sp.x, sp.y, sp.z);
-}
-
-/*
-*
-* Set target local ned velocity
-*
-* Modifies a mavlink_set_position_target_local_ned_t struct with target VX VY VZ
-* velocities in the Local NED frame, in meters per second.
-*/
-void
-set_velocity(float vx, float vy, float vz, mavlink_set_position_target_local_ned_t &sp)
-{
-	sp.type_mask =
-		MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_VELOCITY;
-
-	sp.coordinate_frame = MAV_FRAME_LOCAL_NED;
-
-	sp.vx = vx;
-	sp.vy = vy;
-	sp.vz = vz;
-
-	//printf("VELOCITY SETPOINT UVW = [ %.4f , %.4f , %.4f ] \n", sp.vx, sp.vy, sp.vz);
-}
-
-/*
-* Set target local ned acceleration
-*
-* Modifies a mavlink_set_position_target_local_ned_t struct with target AX AY AZ
-* accelerations in the Local NED frame, in meters per second squared.
-*/
-void
-set_acceleration(float ax, float ay, float az, mavlink_set_position_target_local_ned_t &sp)
-{
-
-	// NOT IMPLEMENTED
-	fprintf(stderr, "set_acceleration doesn't work yet \n");
-	throw 1;
-
-
-	sp.type_mask =
-		MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_ACCELERATION &
-		MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_VELOCITY;
-
-	sp.coordinate_frame = MAV_FRAME_LOCAL_NED;
-
-	sp.afx = ax;
-	sp.afy = ay;
-	sp.afz = az;
-}
-
-// the next two need to be called after one of the above
-
-/*
-* Set target local ned yaw
-*
-* Modifies a mavlink_set_position_target_local_ned_t struct with a target yaw
-* in the Local NED frame, in radians.
-*/
-void
-set_yaw(float yaw, mavlink_set_position_target_local_ned_t &sp)
-{
-	sp.type_mask &=
-		MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_YAW_ANGLE;
-
-	sp.yaw = yaw;
-
-	printf("POSITION SETPOINT YAW = %.4f \n", sp.yaw);
-}
-
-/*
-* Set target local ned yaw rate
-*
-* Modifies a mavlink_set_position_target_local_ned_t struct with a target yaw rate
-* in the Local NED frame, in radians per second.
-*/
-void
-set_yaw_rate(float yaw_rate, mavlink_set_position_target_local_ned_t &sp)
-{
-	sp.type_mask &=
-		MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_YAW_RATE;
-
-	sp.yaw_rate = yaw_rate;
-}
 
 AutopilotInterface::AutopilotInterface(SerialPort *serial_port_)
 {
 	//initialize attributes
 	write_count = 0;
 
-	reading_status = 0;      // whether the read thread is running
-	writing_status = 0;      // whether the write thread is running
-	control_status = 0;      // whether the autopilot is in offboard control mode
+	reading_status = 0;    // whether the read thread is running
+	writing_status = 0;    // whether the write thread is running
+	offboard_mode = 0;     // whether the autopilot is in offboard control mode
 	time_to_exit = false;  // flag to signal thread exit
 
-	system_id = 0; // system id
+	system_id = 0;    // system id
 	autopilot_id = 0; // autopilot component id
 	companion_id = 0; // companion computer component id
 
@@ -237,13 +116,12 @@ void AutopilotInterface::read_messages()
 			current_messages.sysid = message.sysid;
 			current_messages.compid = message.compid;
 
-			// Handle Message ID
 			switch (message.msgid) {
-
 				case MAVLINK_MSG_ID_HEARTBEAT:
 				{
-					printf("MAVLINK_MSG_ID_HEARTBEAT\n");
+					fprintf(stderr, "MAVLINK_MSG_ID_HEARTBEAT\n");
 					mavlink_msg_heartbeat_decode(&message, &(current_messages.heartbeat));
+					fprintf(stderr, "In mode: %d\n", current_messages.heartbeat.base_mode);
 					current_messages.time_stamps.heartbeat = get_time_usec();
 					this_timestamps.heartbeat = current_messages.time_stamps.heartbeat;
 					break;
@@ -330,13 +208,15 @@ void AutopilotInterface::read_messages()
 					break;
 				}
 
+				case MAVLINK_MSG_ID_HIL_STATE:
+				{
+					printf("Got a HIL");
+				}
 				default:
 				{
 					// printf("Warning, did not handle message id %i\n",message.msgid);
 					break;
 				}
-
-
 			} // end: switch msgid
 
 		} // end: if read message
@@ -350,7 +230,7 @@ void AutopilotInterface::read_messages()
 			//				this_timestamps.global_position_int        &&
 			//				this_timestamps.position_target_local_ned  &&
 			//				this_timestamps.position_target_global_int &&
-			//				this_timestamps.highres_imu                &&
+							this_timestamps.highres_imu                &&
 			//				this_timestamps.attitude                   &&
 			this_timestamps.sys_status
 			;
@@ -360,7 +240,7 @@ void AutopilotInterface::read_messages()
 			usleep(100); // look for components of batches at 10kHz
 		}
 
-	} // end: while not received all
+	}
 
 	return;
 }
@@ -369,10 +249,9 @@ void AutopilotInterface::read_messages()
 int
 AutopilotInterface::write_message(mavlink_message_t message)
 {
-	// do the write
 	int len = serial_port->write_message(message);
 
-	// book keep
+	// book keeping
 	write_count++;
 
 	return len;
@@ -382,6 +261,9 @@ AutopilotInterface::write_message(mavlink_message_t message)
 void
 AutopilotInterface::write_setpoint()
 {
+	static int i;
+	fprintf(stderr, "Writing setpoint %d\n", i);
+	i++;
 	// pull from position target
 	mavlink_set_position_target_local_ned_t sp = current_setpoint;
 
@@ -398,7 +280,6 @@ AutopilotInterface::write_setpoint()
 
 	mavlink_message_t message;
 	mavlink_msg_set_position_target_local_ned_encode(system_id, companion_id, &message, &sp);
-
 	// do the write
 	int len = write_message(message);
 
@@ -408,52 +289,51 @@ AutopilotInterface::write_setpoint()
 	//	else
 	//		printf("%lu POSITION_TARGET  = [ %f , %f , %f ] \n", write_count, position_target.x, position_target.y, position_target.z);
 
-	return;
 }
 
 
-void AutopilotInterface::enable_offboard_control()
+void
+AutopilotInterface::enable_offboard_control()
 {
 	// Should only send this command once
-	if (control_status == 0) {
+	if (offboard_mode == false) {
 		printf("ENABLE OFFBOARD MODE\n");
 
-		// Sends the command to go off-board
 		int success = toggle_offboard_control(true);
 
-		// Check the command was written
-		if (success)
-			control_status = 1;
+		//Check the next status message from Pixhawk; through the read thread
+
+		//THis only checks if the string was written; not if px4 rejected command
+		if (success) {
+			offboard_mode = true;
+		}
 		else {
 			fprintf(stderr, "Error: off-board mode not set, could not write message\n");
 			//throw EXIT_FAILURE;
 		}
-
-		printf("\n");
 	}
 }
 
-// ------------------------------------------------------------------------------
-//   Stop Off-Board Mode
-// ------------------------------------------------------------------------------
-void AutopilotInterface::disable_offboard_control()
+
+void
+AutopilotInterface::disable_offboard_control()
 {
 	// Should only send this command once
-	if (control_status == 1) {
+	if (offboard_mode == true) {
 		printf("DISABLE OFFBOARD MODE\n");
 
-		// Sends the command to stop off-board
 		int success = toggle_offboard_control(false);
 
+		//Check the next status message from Pixhawk; through the read thread
+
 		// Check the command was written
-		if (success)
-			control_status = false;
+		if (success) {
+			offboard_mode = false;
+		}
 		else {
 			fprintf(stderr, "Error: off-board mode not set, could not write message\n");
 			//throw EXIT_FAILURE;
 		}
-
-		printf("\n");
 	}
 }
 
@@ -482,7 +362,7 @@ int AutopilotInterface::toggle_offboard_control(bool flag)
 
 void AutopilotInterface::start()
 {
-	if (serial_port->status != 1) {
+	if (serial_port->isOpen() != true) {
 		fprintf(stderr, "ERROR: serial port not open\n");
 		throw 1;
 	}
@@ -574,36 +454,13 @@ void AutopilotInterface::stop()
 	time_to_exit = true;
 
 	// Wait to close read and write threads
-	CloseHandle(hread_thread);
-	CloseHandle(hwrite_thread);
 	//pthread_join(read_tid, NULL);
 	//pthread_join(write_tid, NULL);
-
+	CloseHandle(hread_thread);
+	CloseHandle(hwrite_thread);
+	
 	printf("Autopilot stopped.\n");
-
-	// still need to close the serial_port separately
 }
-
-
-void AutopilotInterface::start_read_thread()
-{
-	if (reading_status != 0)
-		fprintf(stderr, "read thread already running\n");
-	else
-		read_thread();
-	return;
-}
-
-
-void AutopilotInterface::start_write_thread(void)
-{
-	if (writing_status != 0)
-		fprintf(stderr, "write thread already running\n");
-	else
-		write_thread();
-	return;
-}
-
 
 void AutopilotInterface::handle_quit(int sig)
 {
@@ -616,9 +473,16 @@ void AutopilotInterface::handle_quit(int sig)
 	}
 }
 
-// ------------------------------------------------------------------------------
-//   Read Thread
-// ------------------------------------------------------------------------------
+
+// Read thread
+void AutopilotInterface::start_read_thread()
+{
+	if (reading_status)
+		fprintf(stderr, "read thread already running\n");
+	else
+		read_thread();
+}
+
 void AutopilotInterface::read_thread()
 {
 	reading_status = true;
@@ -630,34 +494,40 @@ void AutopilotInterface::read_thread()
 	}
 
 	reading_status = false;
-
-	return;
 }
 
-// ------------------------------------------------------------------------------
-//   Write Thread
-// ------------------------------------------------------------------------------
+
+// Write thread
+void AutopilotInterface::start_write_thread(void)
+{
+	if (writing_status)
+		fprintf(stderr, "write thread already running\n");
+	else
+		write_thread();
+}
+
 void AutopilotInterface::write_thread(void)
 {
-	// signal startup
-	writing_status = 2;
+	printf("We're in the writing thread\n");
+	writing_status = true;
 
 	// prepare an initial setpoint, just stay put
 	mavlink_set_position_target_local_ned_t sp;
 	sp.type_mask = MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_VELOCITY &
-		MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_YAW_RATE;
+		MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_YAW_RATE &MAVLINK_MSG_SET_POSITION_TARGET_LOCAL_NED_YAW_ANGLE;
+
 	sp.coordinate_frame = MAV_FRAME_LOCAL_NED;
 	sp.vx = 0.0;
 	sp.vy = 0.0;
 	sp.vz = 0.0;
 	sp.yaw_rate = 0.0;
+	sp.yaw = 0.0;
 
 	// set position target
 	current_setpoint = sp;
 
 	// write a message and signal writing
 	write_setpoint();
-	writing_status = true;
 
 	// Pixhawk needs to see off-board commands at minimum 2Hz,
 	// otherwise it will go into fail safe
@@ -666,41 +536,26 @@ void AutopilotInterface::write_thread(void)
 		write_setpoint();
 	}
 
-	// signal end
 	writing_status = false;
-
-	return;
-
 }
 
-// End Autopilot_Interface
 
+/*
+ * End Autopilot_Interface
+ */
 
-// ------------------------------------------------------------------------------
-//  Pthread Starter Helper Functions
-// ------------------------------------------------------------------------------
 
 DWORD WINAPI start_autopilot_interface_read_thread(void *args)
 {
-	// takes an autopilot object argument
 	AutopilotInterface *autopilot_interface = (AutopilotInterface *)args;
-
-	// run the object's read thread
 	autopilot_interface->start_read_thread();
-
-	// done!
 	return NULL;
 }
 
 DWORD WINAPI start_autopilot_interface_write_thread(void *args)
 {
-	// takes an autopilot object argument
 	AutopilotInterface *autopilot_interface = (AutopilotInterface *)args;
-
-	// run the object's read thread
 	autopilot_interface->start_write_thread();
-
-	// done!
 	return NULL;
 }
 
